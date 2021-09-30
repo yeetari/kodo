@@ -1,0 +1,5 @@
+fn main() {
+    let foo = 5;
+    let bar = foo;
+    return bar;
+}
