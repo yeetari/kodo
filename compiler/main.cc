@@ -16,6 +16,10 @@
 #include <sys/mman.h>
 
 int main(int argc, char **argv) {
+    if (argc == 1) {
+        fmt::print("Usage: {} [-r] [-v[v]] <input-file>\n", argv[0]);
+        return 1;
+    }
     std::string input_file;
     bool dump_codegen = false;
     bool dump_ir = false;
