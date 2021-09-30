@@ -4,9 +4,45 @@
 #include <Lexer.hh>
 #include <Token.hh>
 
+#include <codegen/support/Queue.hh>
+
 #include <fmt/core.h>
 
 #include <cstdlib>
+
+namespace {
+
+enum class Op {
+    Add,
+    Sub,
+};
+
+constexpr int precedence(Op op) {
+    switch (op) {
+    case Op::Add:
+    case Op::Sub:
+        return 1;
+    }
+}
+
+constexpr int compare_op(Op op1, Op op2) {
+    int p1 = precedence(op1);
+    int p2 = precedence(op2);
+    return p1 > p2 ? 1 : p1 < p2 ? -1 : 0;
+}
+
+std::unique_ptr<ast::Node> create_expr(Op op, Queue<std::unique_ptr<ast::Node>> &operands) {
+    auto rhs = operands.pop();
+    auto lhs = operands.pop();
+    switch (op) {
+    case Op::Add:
+        return std::make_unique<ast::BinaryExpr>(ast::BinaryOp::Add, std::move(lhs), std::move(rhs));
+    case Op::Sub:
+        return std::make_unique<ast::BinaryExpr>(ast::BinaryOp::Sub, std::move(lhs), std::move(rhs));
+    }
+}
+
+} // namespace
 
 std::optional<Token> Parser::consume(TokenKind kind) {
     if (m_lexer.peek().kind() == kind) {
@@ -25,10 +61,55 @@ Token Parser::expect(TokenKind kind) {
 }
 
 std::unique_ptr<ast::Node> Parser::parse_expr() {
-    if (auto identifier = consume(TokenKind::Identifier)) {
-        return std::make_unique<ast::Symbol>(std::string(identifier->text()));
+    Queue<std::unique_ptr<ast::Node>> operands;
+    Queue<Op> operators;
+    bool keep_parsing = true;
+    while (keep_parsing) {
+        std::optional<Op> op1;
+        switch (m_lexer.peek().kind()) {
+        case TokenKind::Plus:
+            op1 = Op::Add;
+            break;
+        case TokenKind::Minus:
+            op1 = Op::Sub;
+            break;
+        default:
+            break;
+        }
+        if (!op1) {
+            switch (m_lexer.peek().kind()) {
+            case TokenKind::Identifier:
+                operands.push(std::make_unique<ast::Symbol>(std::string(expect(TokenKind::Identifier).text())));
+                break;
+            case TokenKind::IntLit:
+                operands.push(std::make_unique<ast::IntegerLiteral>(expect(TokenKind::IntLit).number()));
+                break;
+            default:
+                keep_parsing = false;
+                break;
+            }
+            continue;
+        }
+        m_lexer.next();
+        while (!operators.empty()) {
+            auto op2 = operators.peek();
+            if (compare_op(*op1, op2) >= 0) {
+                break;
+            }
+            auto op = operators.pop();
+            operands.push(create_expr(op, operands));
+        }
+        operators.push(*op1);
     }
-    return std::make_unique<ast::IntegerLiteral>(expect(TokenKind::IntLit).number());
+    while (!operators.empty()) {
+        auto op = operators.pop();
+        operands.push(create_expr(op, operands));
+    }
+    if (operands.size() != 1) {
+        fmt::print("error: unfinished expression\n");
+        std::exit(1);
+    }
+    return operands.pop();
 }
 
 std::unique_ptr<ast::DeclStmt> Parser::parse_decl_stmt() {

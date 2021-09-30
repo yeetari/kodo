@@ -20,6 +20,7 @@ class IrGenerator final : public ast::Visitor {
     std::unordered_map<std::string_view, ir::StackSlot *> m_var_map;
 
 public:
+    void visit(const ast::BinaryExpr &binary_expr) override;
     void visit(const ast::Block &block) override;
     void visit(const ast::DeclStmt &decl_stmt) override;
     void visit(const ast::FunctionDecl &function_decl) override;
@@ -29,6 +30,21 @@ public:
 
     ir::Unit &unit() { return m_unit; }
 };
+
+void IrGenerator::visit(const ast::BinaryExpr &binary_expr) {
+    binary_expr.lhs().accept(this);
+    binary_expr.rhs().accept(this);
+    auto binary_op = [](ast::BinaryOp op) {
+        switch (op) {
+        case ast::BinaryOp::Add:
+            return ir::BinaryOp::Add;
+        case ast::BinaryOp::Sub:
+            return ir::BinaryOp::Sub;
+        }
+    };
+    m_expr_stack.push(
+        m_block->append<ir::BinaryInst>(binary_op(binary_expr.op()), m_expr_stack.pop(), m_expr_stack.pop()));
+}
 
 void IrGenerator::visit(const ast::Block &block) {
     m_block = m_function->append_block();

@@ -14,6 +14,8 @@ enum class TokenKind {
     KeywordReturn,
     LeftBrace,
     LeftParen,
+    Minus,
+    Plus,
     RightBrace,
     RightParen,
     Semi,

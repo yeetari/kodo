@@ -21,10 +21,14 @@ Token Lexer::next_token() {
         return TokenKind::Eq;
     case '{':
         return TokenKind::LeftBrace;
-    case '}':
-        return TokenKind::RightBrace;
     case '(':
         return TokenKind::LeftParen;
+    case '-':
+        return TokenKind::Minus;
+    case '+':
+        return TokenKind::Plus;
+    case '}':
+        return TokenKind::RightBrace;
     case ')':
         return TokenKind::RightParen;
     case ';':

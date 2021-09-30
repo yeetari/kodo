@@ -17,6 +17,27 @@ public:
     virtual void accept(Visitor *visitor) const = 0;
 };
 
+enum class BinaryOp {
+    Add,
+    Sub,
+};
+
+class BinaryExpr : public Node {
+    const BinaryOp m_op;
+    const std::unique_ptr<const Node> m_lhs;
+    const std::unique_ptr<const Node> m_rhs;
+
+public:
+    BinaryExpr(BinaryOp op, std::unique_ptr<const Node> &&lhs, std::unique_ptr<const Node> &&rhs)
+        : m_op(op), m_lhs(std::move(lhs)), m_rhs(std::move(rhs)) {}
+
+    void accept(Visitor *visitor) const override;
+
+    BinaryOp op() const { return m_op ;}
+    const Node &lhs() const { return *m_lhs; }
+    const Node &rhs() const { return *m_rhs; }
+};
+
 class Block : public Node {
     List<const Node> m_stmts;
 
@@ -93,6 +114,7 @@ public:
 };
 
 struct Visitor {
+    virtual void visit(const BinaryExpr &binary_expr) = 0;
     virtual void visit(const Block &block) = 0;
     virtual void visit(const DeclStmt &decl_stmt) = 0;
     virtual void visit(const FunctionDecl &function_decl) = 0;
@@ -100,6 +122,10 @@ struct Visitor {
     virtual void visit(const ReturnStmt &return_stmt) = 0;
     virtual void visit(const Symbol &symbol) = 0;
 };
+
+inline void BinaryExpr::accept(Visitor *visitor) const {
+    visitor->visit(*this);
+}
 
 inline void Block::accept(Visitor *visitor) const {
     visitor->visit(*this);

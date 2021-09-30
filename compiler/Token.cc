@@ -25,6 +25,10 @@ std::string_view Token::kind_string(TokenKind kind) {
         return "{"sv;
     case TokenKind::LeftParen:
         return "("sv;
+    case TokenKind::Minus:
+        return "-"sv;
+    case TokenKind::Plus:
+        return "+"sv;
     case TokenKind::RightBrace:
         return "}"sv;
     case TokenKind::RightParen:
