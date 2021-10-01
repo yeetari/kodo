@@ -1,5 +1,9 @@
+fn test(let a, let b) {
+    return a + b;
+}
+
 fn main() {
     let foo = 5 + 10;
     let bar = foo;
-    return bar + foo - bar;
+    return test(foo, bar + 15) - bar;
 }

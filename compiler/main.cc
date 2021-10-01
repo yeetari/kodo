@@ -59,8 +59,8 @@ int main(int argc, char **argv) {
     CharStream stream(ifstream);
     Lexer lexer(stream);
     Parser parser(lexer);
-    auto function = parser.parse();
-    auto unit = generate_ir(*function);
+    auto root = parser.parse();
+    auto unit = generate_ir(*root);
     if (dump_ir) {
         fmt::print("============\n");
         fmt::print("GENERATED IR\n");
@@ -85,12 +85,12 @@ int main(int argc, char **argv) {
     }
 
     auto compiled = x86::compile(unit);
-    auto encoded = x86::encode(compiled);
+    auto [entry, encoded] = x86::encode(compiled, unit.find_function("main"));
     if (run) {
         auto *code_region =
             mmap(nullptr, encoded.size(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         memcpy(code_region, encoded.data(), encoded.size());
-        return reinterpret_cast<int (*)()>(code_region)();
+        return reinterpret_cast<int (*)()>(static_cast<std::uint8_t *>(code_region) + entry)();
     }
     std::ofstream output_file("out.bin", std::ios::binary | std::ios::trunc);
     output_file.write(reinterpret_cast<const char *>(encoded.data()), static_cast<std::streamsize>(encoded.size()));

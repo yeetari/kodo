@@ -4,8 +4,8 @@
 
 namespace ast {
 
-class FunctionDecl;
+class Root;
 
 } // namespace ast
 
-ir::Unit generate_ir(const ast::FunctionDecl &function_decl);
+ir::Unit generate_ir(const ast::Root &root);

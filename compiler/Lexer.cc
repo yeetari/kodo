@@ -17,6 +17,8 @@ Token Lexer::next_token() {
 
     char ch = m_stream.next();
     switch (ch) {
+    case ',':
+        return TokenKind::Comma;
     case '=':
         return TokenKind::Eq;
     case '{':
@@ -33,6 +35,15 @@ Token Lexer::next_token() {
         return TokenKind::RightParen;
     case ';':
         return TokenKind::Semi;
+    case '/':
+        if (m_stream.peek() == '/') {
+            m_stream.next();
+            while (m_stream.peek() != '\n') {
+                m_stream.next();
+            }
+            return next_token();
+        }
+        break;
     }
     if (std::isdigit(ch) != 0) {
         std::size_t number = ch - '0';
@@ -60,7 +71,7 @@ Token Lexer::next_token() {
         const char *copy = strdup(buf.c_str());
         return std::string_view(copy, buf.length());
     }
-    fmt::print("error: unexpected '{}'", ch);
+    fmt::print("error: unexpected '{}'\n", ch);
     return TokenKind::Eof;
 }
 

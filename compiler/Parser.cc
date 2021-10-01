@@ -4,7 +4,7 @@
 #include <Lexer.hh>
 #include <Token.hh>
 
-#include <codegen/support/Queue.hh>
+#include <codegen/support/Stack.hh>
 
 #include <fmt/core.h>
 
@@ -31,7 +31,7 @@ constexpr int compare_op(Op op1, Op op2) {
     return p1 > p2 ? 1 : p1 < p2 ? -1 : 0;
 }
 
-std::unique_ptr<ast::Node> create_expr(Op op, Queue<std::unique_ptr<ast::Node>> &operands) {
+std::unique_ptr<ast::Node> create_expr(Op op, Stack<std::unique_ptr<ast::Node>> &operands) {
     auto rhs = operands.pop();
     auto lhs = operands.pop();
     switch (op) {
@@ -60,9 +60,20 @@ Token Parser::expect(TokenKind kind) {
     return next;
 }
 
+std::unique_ptr<ast::CallExpr> Parser::parse_call_expr(std::unique_ptr<ast::Symbol> &&name) {
+    auto call_expr = std::make_unique<ast::CallExpr>(std::move(name));
+    expect(TokenKind::LeftParen);
+    while (m_lexer.peek().kind() != TokenKind::RightParen) {
+        call_expr->add_arg(parse_expr());
+        consume(TokenKind::Comma);
+    }
+    expect(TokenKind::RightParen);
+    return call_expr;
+}
+
 std::unique_ptr<ast::Node> Parser::parse_expr() {
-    Queue<std::unique_ptr<ast::Node>> operands;
-    Queue<Op> operators;
+    Stack<std::unique_ptr<ast::Node>> operands;
+    Stack<Op> operators;
     bool keep_parsing = true;
     while (keep_parsing) {
         std::optional<Op> op1;
@@ -78,9 +89,15 @@ std::unique_ptr<ast::Node> Parser::parse_expr() {
         }
         if (!op1) {
             switch (m_lexer.peek().kind()) {
-            case TokenKind::Identifier:
-                operands.push(std::make_unique<ast::Symbol>(std::string(expect(TokenKind::Identifier).text())));
+            case TokenKind::Identifier: {
+                auto symbol = std::make_unique<ast::Symbol>(std::string(expect(TokenKind::Identifier).text()));
+                if (m_lexer.peek().kind() == TokenKind::LeftParen) {
+                    operands.push(parse_call_expr(std::move(symbol)));
+                } else {
+                    operands.push(std::move(symbol));
+                }
                 break;
+            }
             case TokenKind::IntLit:
                 operands.push(std::make_unique<ast::IntegerLiteral>(expect(TokenKind::IntLit).number()));
                 break;
@@ -153,12 +170,22 @@ std::unique_ptr<ast::Block> Parser::parse_block() {
     return block;
 }
 
-std::unique_ptr<ast::FunctionDecl> Parser::parse() {
-    expect(TokenKind::KeywordFn);
-    auto name = expect(TokenKind::Identifier);
-    expect(TokenKind::LeftParen);
-    expect(TokenKind::RightParen);
-    auto function = std::make_unique<ast::FunctionDecl>(std::string(name.text()));
-    function->set_block(parse_block());
-    return function;
+std::unique_ptr<ast::Root> Parser::parse() {
+    auto root = std::make_unique<ast::Root>();
+    while (m_lexer.has_next()) {
+        expect(TokenKind::KeywordFn);
+        auto name = expect(TokenKind::Identifier);
+        expect(TokenKind::LeftParen);
+        auto function = std::make_unique<ast::FunctionDecl>(std::string(name.text()));
+        while (m_lexer.peek().kind() != TokenKind::RightParen) {
+            expect(TokenKind::KeywordLet);
+            auto arg_name = expect(TokenKind::Identifier);
+            function->add_arg(std::string(arg_name.text()));
+            consume(TokenKind::Comma);
+        }
+        expect(TokenKind::RightParen);
+        function->set_block(parse_block());
+        root->add_function(std::move(function));
+    }
+    return root;
 }

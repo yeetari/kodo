@@ -7,6 +7,8 @@
 std::string_view Token::kind_string(TokenKind kind) {
     using namespace std::literals;
     switch (kind) {
+    case TokenKind::Comma:
+        return ","sv;
     case TokenKind::Eof:
         return "eof"sv;
     case TokenKind::Eq:

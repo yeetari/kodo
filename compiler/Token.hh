@@ -5,6 +5,7 @@
 #include <utility>
 
 enum class TokenKind {
+    Comma,
     Eof,
     Eq,
     Identifier,
