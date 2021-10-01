@@ -144,6 +144,17 @@ public:
     const std::string &name() const { return m_name; }
 };
 
+class YieldStmt : public Node {
+    const std::unique_ptr<const Node> m_value;
+
+public:
+    explicit YieldStmt(std::unique_ptr<const Node> &&value) : m_value(std::move(value)) {}
+
+    void accept(Visitor *visitor) const override;
+
+    const Node &value() const { return *m_value; }
+};
+
 struct Visitor {
     virtual void visit(const BinaryExpr &binary_expr) = 0;
     virtual void visit(const Block &block) = 0;
@@ -154,6 +165,7 @@ struct Visitor {
     virtual void visit(const ReturnStmt &return_stmt) = 0;
     virtual void visit(const Root &root) = 0;
     virtual void visit(const Symbol &symbol) = 0;
+    virtual void visit(const YieldStmt &yield_stmt) = 0;
 };
 
 inline void BinaryExpr::accept(Visitor *visitor) const {
@@ -189,6 +201,10 @@ inline void Root::accept(Visitor *visitor) const {
 }
 
 inline void Symbol::accept(Visitor *visitor) const {
+    visitor->visit(*this);
+}
+
+inline void YieldStmt::accept(Visitor *visitor) const {
     visitor->visit(*this);
 }
 

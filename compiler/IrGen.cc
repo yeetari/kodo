@@ -4,20 +4,31 @@
 
 #include <codegen/ir/Constant.hh>
 #include <codegen/support/Stack.hh>
+#include <fmt/core.h>
 
 #include <string_view>
 #include <unordered_map>
 
 namespace {
 
+class Scope {
+    const Scope *const m_parent;
+    std::unordered_map<std::string_view, ir::Value *> m_symbol_map;
+
+public:
+    explicit Scope(const Scope *parent) : m_parent(parent) {}
+
+    ir::Value *find_symbol(std::string_view name) const;
+    ir::Value *lookup_symbol(std::string_view name) const;
+    void put_symbol(std::string_view name, ir::Value *value);
+};
+
 class IrGenerator final : public ast::Visitor {
     ir::Unit m_unit;
     ir::Function *m_function{nullptr};
     ir::BasicBlock *m_block{nullptr};
     Stack<ir::Value *> m_expr_stack;
-
-    // TODO: Scope class.
-    std::unordered_map<std::string_view, ir::Value *> m_value_map;
+    Stack<Scope> m_scope_stack;
 
 public:
     void visit(const ast::BinaryExpr &binary_expr) override;
@@ -29,9 +40,35 @@ public:
     void visit(const ast::ReturnStmt &return_stmt) override;
     void visit(const ast::Root &root) override;
     void visit(const ast::Symbol &symbol) override;
+    void visit(const ast::YieldStmt &yield_stmt) override;
 
     ir::Unit &unit() { return m_unit; }
 };
+
+ir::Value *Scope::find_symbol(std::string_view name) const {
+    for (const auto *scope = this; scope != nullptr; scope = scope->m_parent) {
+        if (scope->m_symbol_map.contains(name)) {
+            return scope->m_symbol_map.at(name);
+        }
+    }
+    return nullptr;
+}
+
+ir::Value *Scope::lookup_symbol(std::string_view name) const {
+    if (auto *symbol = find_symbol(name)) {
+        return symbol;
+    }
+    fmt::print("error: use of undeclared symbol {}\n", name);
+    std::exit(1);
+}
+
+void Scope::put_symbol(std::string_view name, ir::Value *value) {
+    if (find_symbol(name) != nullptr) {
+        fmt::print("error: attempted redeclaration of symbol {}\n", name);
+        std::exit(1);
+    }
+    m_symbol_map.emplace(name, value);
+}
 
 void IrGenerator::visit(const ast::BinaryExpr &binary_expr) {
     binary_expr.lhs().accept(this);
@@ -50,10 +87,16 @@ void IrGenerator::visit(const ast::BinaryExpr &binary_expr) {
 }
 
 void IrGenerator::visit(const ast::Block &block) {
-    m_block = m_function->append_block();
+    m_scope_stack.emplace(m_scope_stack.peek());
+    auto *new_block = m_function->append_block();
+    if (m_block != nullptr) {
+        m_block->append<ir::BranchInst>(new_block);
+    }
+    m_block = new_block;
     for (const auto *stmt : block) {
         stmt->accept(this);
     }
+    m_scope_stack.pop();
 }
 
 void IrGenerator::visit(const ast::CallExpr &call_expr) {
@@ -66,25 +109,29 @@ void IrGenerator::visit(const ast::CallExpr &call_expr) {
         args.push_back(m_expr_stack.pop());
     }
     std::reverse(args.begin(), args.end());
-    auto *call = m_block->append<ir::CallInst>(m_value_map.at(call_expr.callee().name()), std::move(args));
+    auto *callee = m_scope_stack.peek().lookup_symbol(call_expr.callee().name());
+    auto *call = m_block->append<ir::CallInst>(callee, std::move(args));
     m_expr_stack.push(call);
 }
 
 void IrGenerator::visit(const ast::DeclStmt &decl_stmt) {
-    ASSERT(!m_value_map.contains(decl_stmt.name()));
+    ASSERT(m_scope_stack.peek().find_symbol(decl_stmt.name()) == nullptr);
     auto *stack_slot = m_function->append_stack_slot();
     decl_stmt.value().accept(this);
+    ASSERT(m_expr_stack.size() == 1);
     m_block->append<ir::StoreInst>(stack_slot, m_expr_stack.pop());
-    m_value_map.emplace(decl_stmt.name(), stack_slot);
+    m_scope_stack.peek().put_symbol(decl_stmt.name(), stack_slot);
 }
 
 void IrGenerator::visit(const ast::FunctionDecl &function_decl) {
     m_function = m_unit.append_function(function_decl.name(), function_decl.args().size());
-    m_value_map.emplace(function_decl.name(), m_function);
+    m_scope_stack.peek().put_symbol(function_decl.name(), m_function);
+    m_scope_stack.emplace(m_scope_stack.peek());
     for (std::size_t i = 0; const auto &arg : function_decl.args()) {
-        m_value_map.emplace(arg, m_function->argument(i++));
+        m_scope_stack.peek().put_symbol(arg, m_function->argument(i++));
     }
     function_decl.block().accept(this);
+    m_scope_stack.pop();
 }
 
 void IrGenerator::visit(const ast::IntegerLiteral &integer_literal) {
@@ -97,17 +144,23 @@ void IrGenerator::visit(const ast::ReturnStmt &return_stmt) {
 }
 
 void IrGenerator::visit(const ast::Root &root) {
+    m_scope_stack.emplace(nullptr);
     for (const auto *function : root) {
         function->accept(this);
     }
 }
 
 void IrGenerator::visit(const ast::Symbol &symbol) {
-    auto *var = m_value_map.at(symbol.name());
+    auto *var = m_scope_stack.peek().lookup_symbol(symbol.name());
     if (var->is<ir::StackSlot>()) {
         var = m_block->append<ir::LoadInst>(var);
     }
     m_expr_stack.push(var);
+}
+
+void IrGenerator::visit(const ast::YieldStmt &yield_stmt) {
+    yield_stmt.value().accept(this);
+    // TODO: Emit return if yielding from a function.
 }
 
 } // namespace

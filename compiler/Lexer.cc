@@ -67,6 +67,9 @@ Token Lexer::next_token() {
         if (buf == "return") {
             return TokenKind::KeywordReturn;
         }
+        if (buf == "yield") {
+            return TokenKind::KeywordYield;
+        }
         // TODO: Don't strdup, make std::string disown memory somehow.
         const char *copy = strdup(buf.c_str());
         return std::string_view(copy, buf.length());

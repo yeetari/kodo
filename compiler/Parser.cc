@@ -101,6 +101,10 @@ std::unique_ptr<ast::Node> Parser::parse_expr() {
             case TokenKind::IntLit:
                 operands.push(std::make_unique<ast::IntegerLiteral>(expect(TokenKind::IntLit).number()));
                 break;
+            case TokenKind::LeftBrace: {
+                operands.push(parse_block());
+                break;
+            }
             default:
                 keep_parsing = false;
                 break;
@@ -149,12 +153,24 @@ std::unique_ptr<ast::ReturnStmt> Parser::parse_return_stmt() {
     return std::make_unique<ast::ReturnStmt>(std::move(expr));
 }
 
+std::unique_ptr<ast::YieldStmt> Parser::parse_yield_stmt() {
+    if (!consume(TokenKind::KeywordYield)) {
+        return {};
+    }
+    auto expr = parse_expr();
+    expect(TokenKind::Semi);
+    return std::make_unique<ast::YieldStmt>(std::move(expr));
+}
+
 std::unique_ptr<ast::Node> Parser::parse_stmt() {
     if (auto decl_stmt = parse_decl_stmt()) {
         return decl_stmt;
     }
     if (auto return_stmt = parse_return_stmt()) {
         return return_stmt;
+    }
+    if (auto yield_stmt = parse_yield_stmt()) {
+        return yield_stmt;
     }
     fmt::print("error: expected a statement but got {}\n", m_lexer.next().to_string());
     std::exit(1);

@@ -18,6 +18,7 @@ class Parser {
     std::unique_ptr<ast::Node> parse_expr();
     std::unique_ptr<ast::DeclStmt> parse_decl_stmt();
     std::unique_ptr<ast::ReturnStmt> parse_return_stmt();
+    std::unique_ptr<ast::YieldStmt> parse_yield_stmt();
     std::unique_ptr<ast::Node> parse_stmt();
     std::unique_ptr<ast::Block> parse_block();
 

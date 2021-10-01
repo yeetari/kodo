@@ -23,6 +23,8 @@ std::string_view Token::kind_string(TokenKind kind) {
         return "let"sv;
     case TokenKind::KeywordReturn:
         return "return"sv;
+    case TokenKind::KeywordYield:
+        return "yield"sv;
     case TokenKind::LeftBrace:
         return "{"sv;
     case TokenKind::LeftParen:
