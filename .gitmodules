@@ -1,3 +1,3 @@
-[submodule "codegen"]
-	path = codegen
-	url = https://github.com/yeetari/codegen.git
+[submodule "coel"]
+	path = coel
+	url = https://github.com/yeetari/coel.git

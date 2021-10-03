@@ -2,12 +2,14 @@
 
 #include <Ast.hh>
 
-#include <codegen/ir/Constant.hh>
-#include <codegen/support/Stack.hh>
+#include <coel/ir/Constant.hh>
+#include <coel/support/Stack.hh>
 #include <fmt/core.h>
 
 #include <string_view>
 #include <unordered_map>
+
+using namespace coel;
 
 namespace {
 
@@ -111,10 +113,10 @@ void IrGenerator::visit(const ast::CallExpr &call_expr) {
 }
 
 void IrGenerator::visit(const ast::DeclStmt &decl_stmt) {
-    ASSERT(m_scope_stack.peek().find_symbol(decl_stmt.name()) == nullptr);
+    COEL_ASSERT(m_scope_stack.peek().find_symbol(decl_stmt.name()) == nullptr);
     auto *stack_slot = m_function->append_stack_slot();
     decl_stmt.value().accept(this);
-    ASSERT(m_expr_stack.size() == 1);
+    COEL_ASSERT(m_expr_stack.size() == 1);
     m_block->append<ir::StoreInst>(stack_slot, m_expr_stack.pop());
     m_scope_stack.peek().put_symbol(decl_stmt.name(), stack_slot);
 }

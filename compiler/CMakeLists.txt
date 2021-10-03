@@ -7,4 +7,4 @@ add_executable(kodoc
     Token.cc)
 target_compile_features(kodoc PRIVATE cxx_std_20)
 target_include_directories(kodoc PRIVATE .)
-target_link_libraries(kodoc PRIVATE codegen fmt::fmt)
+target_link_libraries(kodoc PRIVATE coel fmt::fmt)

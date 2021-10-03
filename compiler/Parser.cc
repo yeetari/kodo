@@ -4,7 +4,7 @@
 #include <Lexer.hh>
 #include <Token.hh>
 
-#include <codegen/support/Stack.hh>
+#include <coel/support/Stack.hh>
 
 #include <fmt/core.h>
 
@@ -31,7 +31,7 @@ constexpr int compare_op(Op op1, Op op2) {
     return p1 > p2 ? 1 : p1 < p2 ? -1 : 0;
 }
 
-std::unique_ptr<ast::Node> create_expr(Op op, Stack<std::unique_ptr<ast::Node>> &operands) {
+std::unique_ptr<ast::Node> create_expr(Op op, coel::Stack<std::unique_ptr<ast::Node>> &operands) {
     auto rhs = operands.pop();
     auto lhs = operands.pop();
     switch (op) {
@@ -89,8 +89,8 @@ std::unique_ptr<ast::MatchExpr> Parser::parse_match_expr() {
 }
 
 std::unique_ptr<ast::Node> Parser::parse_expr() {
-    Stack<std::unique_ptr<ast::Node>> operands;
-    Stack<Op> operators;
+    coel::Stack<std::unique_ptr<ast::Node>> operands;
+    coel::Stack<Op> operators;
     bool keep_parsing = true;
     while (keep_parsing) {
         std::optional<Op> op1;

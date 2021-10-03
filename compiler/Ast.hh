@@ -1,7 +1,7 @@
 #pragma once
 
-#include <codegen/support/List.hh>
-#include <codegen/support/ListNode.hh>
+#include <coel/support/List.hh>
+#include <coel/support/ListNode.hh>
 
 #include <cstddef>
 #include <memory>
@@ -14,7 +14,7 @@ class Symbol;
 class Visitor;
 
 // TODO: Not all nodes are part of a list.
-class Node : public ListNode {
+class Node : public coel::ListNode {
 public:
     virtual void accept(Visitor *visitor) const = 0;
 };
@@ -41,7 +41,7 @@ public:
 };
 
 class Block : public Node {
-    List<const Node> m_stmts;
+    coel::List<const Node> m_stmts;
 
 public:
     void add_stmt(std::unique_ptr<const Node> &&stmt) { m_stmts.insert(m_stmts.end(), stmt.release()); }
@@ -54,7 +54,7 @@ public:
 
 class CallExpr : public Node {
     const std::unique_ptr<const Symbol> m_callee;
-    List<const Node> m_args;
+    coel::List<const Node> m_args;
 
 public:
     explicit CallExpr(std::unique_ptr<const Symbol> &&callee) : m_callee(std::move(callee)) {}
@@ -63,7 +63,7 @@ public:
     void add_arg(std::unique_ptr<const Node> &&arg) { m_args.insert(m_args.end(), arg.release()); }
 
     const Symbol &callee() const { return *m_callee; }
-    const List<const Node> &args() const { return m_args; }
+    const coel::List<const Node> &args() const { return m_args; }
 };
 
 class DeclStmt : public Node {
@@ -148,7 +148,7 @@ public:
 };
 
 class Root : public Node {
-    List<const FunctionDecl> m_functions;
+    coel::List<const FunctionDecl> m_functions;
 
 public:
     void add_function(std::unique_ptr<const FunctionDecl> &&function) {

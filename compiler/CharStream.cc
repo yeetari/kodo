@@ -1,6 +1,6 @@
 #include <CharStream.hh>
 
-#include <codegen/support/Assert.hh>
+#include <coel/support/Assert.hh>
 
 bool CharStream::has_next() {
     return peek() != EOF;
@@ -11,6 +11,6 @@ char CharStream::peek() {
 }
 
 char CharStream::next() {
-    ASSERT(has_next());
+    COEL_ASSERT(has_next());
     return static_cast<char>(m_stream.get());
 }

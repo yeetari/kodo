@@ -1,6 +1,6 @@
 #include <Token.hh>
 
-#include <codegen/support/Assert.hh>
+#include <coel/support/Assert.hh>
 
 #include <cstdlib>
 
@@ -53,7 +53,7 @@ Token::~Token() {
 }
 
 std::string_view Token::text() const {
-    ASSERT(m_kind == TokenKind::Identifier);
+    COEL_ASSERT(m_kind == TokenKind::Identifier);
     return {static_cast<const char *>(m_ptr_data), m_int_data};
 }
 

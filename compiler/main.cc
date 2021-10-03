@@ -5,11 +5,11 @@
 #include <Parser.hh>
 #include <Token.hh>
 
-#include <codegen/codegen/Context.hh>
-#include <codegen/codegen/CopyInserter.hh>
-#include <codegen/codegen/RegisterAllocator.hh>
-#include <codegen/ir/Dumper.hh>
-#include <codegen/x86/Backend.hh>
+#include <coel/codegen/Context.hh>
+#include <coel/codegen/CopyInserter.hh>
+#include <coel/codegen/RegisterAllocator.hh>
+#include <coel/ir/Dumper.hh>
+#include <coel/x86/Backend.hh>
 #include <fmt/core.h>
 
 #include <fstream>
@@ -65,27 +65,27 @@ int main(int argc, char **argv) {
         fmt::print("============\n");
         fmt::print("GENERATED IR\n");
         fmt::print("============\n");
-        ir::dump(unit);
+        coel::ir::dump(unit);
     }
 
-    codegen::Context context(unit);
-    codegen::insert_copies(context);
+    coel::codegen::Context context(unit);
+    coel::codegen::insert_copies(context);
     if (dump_codegen) {
         fmt::print("===============\n");
         fmt::print("INSERTED COPIES\n");
         fmt::print("===============\n");
-        ir::dump(unit);
+        coel::ir::dump(unit);
     }
-    codegen::register_allocate(context);
+    coel::codegen::register_allocate(context);
     if (dump_codegen) {
         fmt::print("===================\n");
         fmt::print("ALLOCATED REGISTERS\n");
         fmt::print("===================\n");
-        ir::dump(unit);
+        coel::ir::dump(unit);
     }
 
-    auto compiled = x86::compile(unit);
-    auto [entry, encoded] = x86::encode(compiled, unit.find_function("main"));
+    auto compiled = coel::x86::compile(unit);
+    auto [entry, encoded] = coel::x86::encode(compiled, unit.find_function("main"));
     if (run) {
         auto *code_region =
             mmap(nullptr, encoded.size(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
