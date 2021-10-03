@@ -154,17 +154,16 @@ void IrGenerator::visit(const ast::MatchExpr &match_expr) {
         m_block = true_dst;
         arm.rhs().accept(this);
         m_block->append<ir::StoreInst>(result_var, m_expr_stack.pop());
+        if (!m_block->has_terminator()) {
+            blocks.push_back(m_block);
+        }
         m_block = false_dst;
     }
     m_block = m_function->append_block();
     for (auto *block : blocks) {
-        // TODO: Instruction::is_terminator() and BasicBlock::has_terminator()
-        if (block->begin() != block->end() &&
-            ((--block->end())->is<ir::BranchInst>() || (--block->end())->is<ir::CondBranchInst>() ||
-             (--block->end())->is<ir::RetInst>())) {
-            continue;
+        if (!block->has_terminator()) {
+            block->append<ir::BranchInst>(m_block);
         }
-        block->append<ir::BranchInst>(m_block);
     }
     auto *load = m_block->append<ir::LoadInst>(result_var);
     m_expr_stack.push(load);
