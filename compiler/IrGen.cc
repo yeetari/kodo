@@ -37,6 +37,7 @@ public:
     void visit(const ast::DeclStmt &decl_stmt) override;
     void visit(const ast::FunctionDecl &function_decl) override;
     void visit(const ast::IntegerLiteral &integer_literal) override;
+    void visit(const ast::MatchExpr &match_expr) override;
     void visit(const ast::ReturnStmt &return_stmt) override;
     void visit(const ast::Root &root) override;
     void visit(const ast::Symbol &symbol) override;
@@ -88,11 +89,6 @@ void IrGenerator::visit(const ast::BinaryExpr &binary_expr) {
 
 void IrGenerator::visit(const ast::Block &block) {
     m_scope_stack.emplace(m_scope_stack.peek());
-    auto *new_block = m_function->append_block();
-    if (m_block != nullptr) {
-        m_block->append<ir::BranchInst>(new_block);
-    }
-    m_block = new_block;
     for (const auto *stmt : block) {
         stmt->accept(this);
     }
@@ -125,6 +121,7 @@ void IrGenerator::visit(const ast::DeclStmt &decl_stmt) {
 
 void IrGenerator::visit(const ast::FunctionDecl &function_decl) {
     m_function = m_unit.append_function(function_decl.name(), function_decl.args().size());
+    m_block = m_function->append_block();
     m_scope_stack.peek().put_symbol(function_decl.name(), m_function);
     m_scope_stack.emplace(m_scope_stack.peek());
     for (std::size_t i = 0; const auto &arg : function_decl.args()) {
@@ -136,6 +133,39 @@ void IrGenerator::visit(const ast::FunctionDecl &function_decl) {
 
 void IrGenerator::visit(const ast::IntegerLiteral &integer_literal) {
     m_expr_stack.push(ir::Constant::get(integer_literal.value()));
+}
+
+void IrGenerator::visit(const ast::MatchExpr &match_expr) {
+    match_expr.matchee().accept(this);
+    auto *matchee = m_expr_stack.pop();
+    auto *result_var = m_function->append_stack_slot();
+    std::vector<ir::BasicBlock *> blocks;
+    for (const auto &arm : match_expr.arms()) {
+        arm.lhs().accept(this);
+        auto *rhs = m_expr_stack.pop();
+        auto *compare = m_block->append<ir::CompareInst>(ir::CompareOp::Eq, matchee, rhs);
+        auto *true_dst = m_function->append_block();
+        auto *false_dst = m_function->append_block();
+        m_block->append<ir::CondBranchInst>(compare, true_dst, false_dst);
+        blocks.push_back(true_dst);
+        blocks.push_back(false_dst);
+        m_block = true_dst;
+        arm.rhs().accept(this);
+        m_block->append<ir::StoreInst>(result_var, m_expr_stack.pop());
+        m_block = false_dst;
+    }
+    m_block = m_function->append_block();
+    for (auto *block : blocks) {
+        // TODO: Instruction::is_terminator() and BasicBlock::has_terminator()
+        if (block->begin() != block->end() &&
+            ((--block->end())->is<ir::BranchInst>() || (--block->end())->is<ir::CondBranchInst>() ||
+             (--block->end())->is<ir::RetInst>())) {
+            continue;
+        }
+        block->append<ir::BranchInst>(m_block);
+    }
+    auto *load = m_block->append<ir::LoadInst>(result_var);
+    m_expr_stack.push(load);
 }
 
 void IrGenerator::visit(const ast::ReturnStmt &return_stmt) {

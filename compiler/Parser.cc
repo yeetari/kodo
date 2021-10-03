@@ -71,6 +71,23 @@ std::unique_ptr<ast::CallExpr> Parser::parse_call_expr(std::unique_ptr<ast::Symb
     return call_expr;
 }
 
+std::unique_ptr<ast::MatchExpr> Parser::parse_match_expr() {
+    expect(TokenKind::KeywordMatch);
+    expect(TokenKind::LeftParen);
+    auto match_expr = std::make_unique<ast::MatchExpr>(parse_expr());
+    expect(TokenKind::RightParen);
+    expect(TokenKind::LeftBrace);
+    while (m_lexer.peek().kind() != TokenKind::RightBrace) {
+        auto arm_lhs = parse_expr();
+        expect(TokenKind::Arrow);
+        auto arm_rhs = parse_expr();
+        match_expr->add_arm(std::move(arm_lhs), std::move(arm_rhs));
+        expect(TokenKind::Comma);
+    }
+    expect(TokenKind::RightBrace);
+    return match_expr;
+}
+
 std::unique_ptr<ast::Node> Parser::parse_expr() {
     Stack<std::unique_ptr<ast::Node>> operands;
     Stack<Op> operators;
@@ -100,6 +117,9 @@ std::unique_ptr<ast::Node> Parser::parse_expr() {
             }
             case TokenKind::IntLit:
                 operands.push(std::make_unique<ast::IntegerLiteral>(expect(TokenKind::IntLit).number()));
+                break;
+            case TokenKind::KeywordMatch:
+                operands.push(parse_match_expr());
                 break;
             case TokenKind::LeftBrace: {
                 operands.push(parse_block());

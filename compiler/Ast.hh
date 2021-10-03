@@ -108,6 +108,34 @@ public:
     std::size_t value() const { return m_value; }
 };
 
+class MatchArm {
+    std::unique_ptr<const Node> m_lhs;
+    std::unique_ptr<const Node> m_rhs;
+
+public:
+    MatchArm(std::unique_ptr<const Node> &&lhs, std::unique_ptr<const Node> &&rhs)
+        : m_lhs(std::move(lhs)), m_rhs(std::move(rhs)) {}
+
+    const Node &lhs() const { return *m_lhs; }
+    const Node &rhs() const { return *m_rhs; }
+};
+
+class MatchExpr : public Node {
+    const std::unique_ptr<const Node> m_matchee;
+    std::vector<MatchArm> m_arms;
+
+public:
+    explicit MatchExpr(std::unique_ptr<const Node> &&matchee) : m_matchee(std::move(matchee)) {}
+
+    void accept(Visitor *visitor) const override;
+    void add_arm(std::unique_ptr<const Node> &&lhs, std::unique_ptr<const Node> &&rhs) {
+        m_arms.emplace_back(std::move(lhs), std::move(rhs));
+    }
+
+    const Node &matchee() const { return *m_matchee; }
+    const std::vector<MatchArm> &arms() const { return m_arms; }
+};
+
 class ReturnStmt : public Node {
     const std::unique_ptr<const Node> m_value;
 
@@ -162,6 +190,7 @@ struct Visitor {
     virtual void visit(const DeclStmt &decl_stmt) = 0;
     virtual void visit(const FunctionDecl &function_decl) = 0;
     virtual void visit(const IntegerLiteral &integer_literal) = 0;
+    virtual void visit(const MatchExpr &match_expr) = 0;
     virtual void visit(const ReturnStmt &return_stmt) = 0;
     virtual void visit(const Root &root) = 0;
     virtual void visit(const Symbol &symbol) = 0;
@@ -189,6 +218,10 @@ inline void FunctionDecl::accept(Visitor *visitor) const {
 }
 
 inline void IntegerLiteral::accept(Visitor *visitor) const {
+    visitor->visit(*this);
+}
+
+inline void MatchExpr::accept(Visitor *visitor) const {
     visitor->visit(*this);
 }
 

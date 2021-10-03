@@ -15,6 +15,7 @@ class Parser {
     Token expect(TokenKind kind);
 
     std::unique_ptr<ast::CallExpr> parse_call_expr(std::unique_ptr<ast::Symbol> &&name);
+    std::unique_ptr<ast::MatchExpr> parse_match_expr();
     std::unique_ptr<ast::Node> parse_expr();
     std::unique_ptr<ast::DeclStmt> parse_decl_stmt();
     std::unique_ptr<ast::ReturnStmt> parse_return_stmt();

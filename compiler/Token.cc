@@ -7,6 +7,8 @@
 std::string_view Token::kind_string(TokenKind kind) {
     using namespace std::literals;
     switch (kind) {
+    case TokenKind::Arrow:
+        return "=>"sv;
     case TokenKind::Comma:
         return ","sv;
     case TokenKind::Eof:
@@ -21,6 +23,8 @@ std::string_view Token::kind_string(TokenKind kind) {
         return "fn"sv;
     case TokenKind::KeywordLet:
         return "let"sv;
+    case TokenKind::KeywordMatch:
+        return "match"sv;
     case TokenKind::KeywordReturn:
         return "return"sv;
     case TokenKind::KeywordYield:

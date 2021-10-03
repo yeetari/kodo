@@ -20,6 +20,10 @@ Token Lexer::next_token() {
     case ',':
         return TokenKind::Comma;
     case '=':
+        if (m_stream.peek() == '>') {
+            m_stream.next();
+            return TokenKind::Arrow;
+        }
         return TokenKind::Eq;
     case '{':
         return TokenKind::LeftBrace;
@@ -63,6 +67,9 @@ Token Lexer::next_token() {
         }
         if (buf == "let") {
             return TokenKind::KeywordLet;
+        }
+        if (buf == "match") {
+            return TokenKind::KeywordMatch;
         }
         if (buf == "return") {
             return TokenKind::KeywordReturn;

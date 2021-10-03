@@ -1,12 +1,16 @@
-fn test(let a, let b) {
+fn add(let a, let b) {
     return a + b;
 }
 
 fn main() {
-    let foo = {
-        let bar = 5 + 10;
+    let foo = 10;
+    return match ({
+        let bar = foo + add(foo, 20);
         yield bar;
+    }) {
+        5 => 20,
+        add(30, 10) => match (foo + 5) {
+            15 => add(50, 60),
+        },
     };
-    let bar = foo + 15;
-    return test(foo, bar);
 }

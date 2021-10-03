@@ -5,6 +5,7 @@
 #include <utility>
 
 enum class TokenKind {
+    Arrow,
     Comma,
     Eof,
     Eq,
@@ -12,6 +13,7 @@ enum class TokenKind {
     IntLit,
     KeywordFn,
     KeywordLet,
+    KeywordMatch,
     KeywordReturn,
     KeywordYield,
     LeftBrace,
