@@ -3,6 +3,7 @@
 #include <Ast.hh>
 
 #include <coel/ir/Constant.hh>
+#include <coel/ir/Types.hh>
 #include <coel/support/Stack.hh>
 #include <fmt/core.h>
 
@@ -114,7 +115,7 @@ void IrGenerator::visit(const ast::CallExpr &call_expr) {
 
 void IrGenerator::visit(const ast::DeclStmt &decl_stmt) {
     COEL_ASSERT(m_scope_stack.peek().find_symbol(decl_stmt.name()) == nullptr);
-    auto *stack_slot = m_function->append_stack_slot();
+    auto *stack_slot = m_function->append_stack_slot(ir::IntegerType::get(32));
     decl_stmt.value().accept(this);
     COEL_ASSERT(m_expr_stack.size() == 1);
     m_block->append<ir::StoreInst>(stack_slot, m_expr_stack.pop());
@@ -122,7 +123,8 @@ void IrGenerator::visit(const ast::DeclStmt &decl_stmt) {
 }
 
 void IrGenerator::visit(const ast::FunctionDecl &function_decl) {
-    m_function = m_unit.append_function(function_decl.name(), function_decl.args().size());
+    std::vector<const ir::Type *> parameters(function_decl.args().size(), ir::IntegerType::get(32));
+    m_function = m_unit.append_function(function_decl.name(), ir::IntegerType::get(32), parameters);
     m_block = m_function->append_block();
     m_scope_stack.peek().put_symbol(function_decl.name(), m_function);
     m_scope_stack.emplace(m_scope_stack.peek());
@@ -134,13 +136,13 @@ void IrGenerator::visit(const ast::FunctionDecl &function_decl) {
 }
 
 void IrGenerator::visit(const ast::IntegerLiteral &integer_literal) {
-    m_expr_stack.push(ir::Constant::get(integer_literal.value()));
+    m_expr_stack.push(ir::Constant::get(ir::IntegerType::get(32), integer_literal.value()));
 }
 
 void IrGenerator::visit(const ast::MatchExpr &match_expr) {
     match_expr.matchee().accept(this);
     auto *matchee = m_expr_stack.pop();
-    auto *result_var = m_function->append_stack_slot();
+    auto *result_var = m_function->append_stack_slot(ir::IntegerType::get(32));
     std::vector<ir::BasicBlock *> blocks;
     for (const auto &arm : match_expr.arms()) {
         arm.lhs().accept(this);
