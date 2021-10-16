@@ -9,6 +9,8 @@ std::string_view Token::kind_string(TokenKind kind) {
     switch (kind) {
     case TokenKind::Arrow:
         return "=>"sv;
+    case TokenKind::Colon:
+        return ":"sv;
     case TokenKind::Comma:
         return ","sv;
     case TokenKind::Eof:

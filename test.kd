@@ -1,8 +1,8 @@
-fn add(let a, let b) {
-    return a + b;
+fn add(let a: u8, let b: u8): u8 {
+    yield a + b;
 }
 
-fn main() {
+fn main(): u8 {
     let foo = 10;
     return match ({
         let bar = foo + add(foo, 20);

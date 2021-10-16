@@ -19,6 +19,31 @@ public:
     virtual void accept(Visitor *visitor) const = 0;
 };
 
+class Type {
+public:
+    Type() = default;
+    Type(const Type &) = delete;
+    Type(Type &&) = delete;
+    virtual ~Type() = default;
+
+    Type &operator=(const Type &) = delete;
+    Type &operator=(Type &&) = delete;
+
+    template <typename T>
+    const T *as() const {
+        return dynamic_cast<const T *>(this);
+    }
+};
+
+class BaseType : public Type {
+    const std::string m_name;
+
+public:
+    explicit BaseType(std::string name) : m_name(std::move(name)) {}
+
+    const std::string &name() const { return m_name; }
+};
+
 enum class BinaryOp {
     Add,
     Sub,
@@ -80,21 +105,37 @@ public:
     const Node &value() const { return *m_value; }
 };
 
+class FunctionArg {
+    std::string m_name;
+    std::unique_ptr<const Type> m_type;
+
+public:
+    FunctionArg(std::string name, std::unique_ptr<const Type> &&type)
+        : m_name(std::move(name)), m_type(std::move(type)) {}
+
+    const std::string &name() const { return m_name; }
+    const Type &type() const { return *m_type; }
+};
+
 class FunctionDecl : public Node {
     const std::string m_name;
-    std::vector<std::string> m_args;
+    std::vector<FunctionArg> m_args;
     std::unique_ptr<const Block> m_block;
+    std::unique_ptr<const Type> m_return_type;
 
 public:
     explicit FunctionDecl(std::string name) : m_name(std::move(name)) {}
 
     void accept(Visitor *visitor) const override;
-    void add_arg(std::string name) { m_args.push_back(std::move(name)); }
+    void add_arg(FunctionArg &&arg) { m_args.push_back(std::move(arg)); }
     void set_block(std::unique_ptr<const Block> &&block) { m_block = std::move(block); }
+    void set_return_type(std::unique_ptr<const Type> &&type) { m_return_type = std::move(type); }
 
     const std::string &name() const { return m_name; }
-    const std::vector<std::string> &args() const { return m_args; }
+    const std::vector<FunctionArg> &args() const { return m_args; }
     const Block &block() const { return *m_block; }
+    const Type &return_type() const { return *m_return_type; }
+    bool has_return_type() const { return !!m_return_type; }
 };
 
 class IntegerLiteral : public Node {

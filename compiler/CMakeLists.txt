@@ -1,6 +1,8 @@
 add_executable(kodoc
+    Analysis.cc
+    AstLowering.cc
     CharStream.cc
-    IrGen.cc
+    HirLowering.cc
     Lexer.cc
     main.cc
     Parser.cc

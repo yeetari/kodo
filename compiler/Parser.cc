@@ -206,6 +206,11 @@ std::unique_ptr<ast::Block> Parser::parse_block() {
     return block;
 }
 
+std::unique_ptr<ast::Type> Parser::parse_type() {
+    auto name = expect(TokenKind::Identifier);
+    return std::make_unique<ast::BaseType>(std::string(name.text()));
+}
+
 std::unique_ptr<ast::Root> Parser::parse() {
     auto root = std::make_unique<ast::Root>();
     while (m_lexer.has_next()) {
@@ -216,10 +221,14 @@ std::unique_ptr<ast::Root> Parser::parse() {
         while (m_lexer.peek().kind() != TokenKind::RightParen) {
             expect(TokenKind::KeywordLet);
             auto arg_name = expect(TokenKind::Identifier);
-            function->add_arg(std::string(arg_name.text()));
+            expect(TokenKind::Colon);
+            function->add_arg({std::string(arg_name.text()), parse_type()});
             consume(TokenKind::Comma);
         }
         expect(TokenKind::RightParen);
+        if (consume(TokenKind::Colon)) {
+            function->set_return_type(parse_type());
+        }
         function->set_block(parse_block());
         root->add_function(std::move(function));
     }

@@ -17,6 +17,8 @@ Token Lexer::next_token() {
 
     char ch = m_stream.next();
     switch (ch) {
+    case ':':
+        return TokenKind::Colon;
     case ',':
         return TokenKind::Comma;
     case '=':

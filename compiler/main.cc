@@ -1,6 +1,8 @@
+#include <Analysis.hh>
 #include <Ast.hh>
+#include <AstLowering.hh>
 #include <CharStream.hh>
-#include <IrGen.hh>
+#include <HirLowering.hh>
 #include <Lexer.hh>
 #include <Parser.hh>
 #include <Token.hh>
@@ -59,8 +61,10 @@ int main(int argc, char **argv) {
     CharStream stream(ifstream);
     Lexer lexer(stream);
     Parser parser(lexer);
-    auto root = parser.parse();
-    auto unit = generate_ir(*root);
+    auto ast_root = parser.parse();
+    auto hir_root = lower_ast(*ast_root);
+    analyse_hir(hir_root);
+    auto unit = lower_hir(hir_root);
     if (dump_ir) {
         fmt::print("============\n");
         fmt::print("GENERATED IR\n");

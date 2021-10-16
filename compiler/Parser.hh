@@ -22,6 +22,7 @@ class Parser {
     std::unique_ptr<ast::YieldStmt> parse_yield_stmt();
     std::unique_ptr<ast::Node> parse_stmt();
     std::unique_ptr<ast::Block> parse_block();
+    std::unique_ptr<ast::Type> parse_type();
 
 public:
     explicit Parser(Lexer &lexer) : m_lexer(lexer) {}
