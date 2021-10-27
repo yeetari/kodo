@@ -2,6 +2,7 @@ add_executable(kodoc
     Analysis.cc
     AstLowering.cc
     CharStream.cc
+    Diagnostic.cc
     HirLowering.cc
     Lexer.cc
     main.cc

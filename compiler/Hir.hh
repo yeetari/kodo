@@ -1,5 +1,7 @@
 #pragma once
 
+#include <SourceLocation.hh>
+
 #include <coel/ir/Type.hh>
 #include <coel/support/List.hh>
 #include <coel/support/ListNode.hh>
@@ -91,24 +93,29 @@ class Expr {
             std::size_t arm_count;
         } m_match;
     };
+    SourceLocation m_location;
     Type m_type{TypeKind::Infer};
     ExprKind m_kind;
 
 public:
-    Expr(ExprKind kind, Type type) : m_kind(kind), m_type(type) {
+    Expr(const SourceLocation &location, ExprKind kind, Type type) : m_location(location), m_kind(kind), m_type(type) {
         if (kind == ExprKind::Block) {
             m_block.stmts = new coel::List<Stmt>;
         }
     }
-    Expr(ExprKind kind, Type type, std::size_t value) : m_kind(kind), m_type(type), m_argument{value} {}
-    Expr(ExprKind op, ExprId lhs, ExprId rhs) : m_kind(op), m_binary{lhs, rhs} {}
-    Expr(const Function *callee, Type type, const ExprId *args)
-        : m_kind(ExprKind::Call), m_type(type), m_call{callee, args} {}
-    Expr(ExprKind kind, std::size_t value) : m_kind(kind), m_constant{value} {}
-    Expr(ExprId matchee, const std::pair<ExprId, ExprId> *arms, std::size_t arm_count)
-        : m_kind(ExprKind::Match), m_match{matchee, arms, arm_count} {}
+    Expr(const SourceLocation &location, ExprKind kind, Type type, std::size_t value)
+        : m_location(location), m_kind(kind), m_type(type), m_argument{value} {}
+    Expr(const SourceLocation &location, ExprKind op, ExprId lhs, ExprId rhs)
+        : m_location(location), m_kind(op), m_binary{lhs, rhs} {}
+    Expr(const SourceLocation &location, const Function *callee, Type type, const ExprId *args)
+        : m_location(location), m_kind(ExprKind::Call), m_type(type), m_call{callee, args} {}
+    Expr(const SourceLocation &location, ExprKind kind, std::size_t value)
+        : m_location(location), m_kind(kind), m_constant{value} {}
+    Expr(const SourceLocation &location, ExprId matchee, const std::pair<ExprId, ExprId> *arms, std::size_t arm_count)
+        : m_location(location), m_kind(ExprKind::Match), m_match{matchee, arms, arm_count} {}
     Expr(const Expr &) = delete;
-    Expr(Expr &&other) noexcept : m_type(other.m_type), m_kind(other.m_kind), m_binary(other.m_binary) {
+    Expr(Expr &&other) noexcept
+        : m_location(other.m_location), m_type(other.m_type), m_kind(other.m_kind), m_binary(other.m_binary) {
         if (m_kind == ExprKind::Block) {
             other.m_block.stmts = nullptr;
         } else if (m_kind == ExprKind::Call) {
@@ -143,6 +150,7 @@ public:
         m_type = type;
     }
 
+    const SourceLocation &location() const { return m_location; }
     const Type &type() const { return m_type; }
     ExprKind kind() const { return m_kind; }
     std::size_t argument_index() const { return m_argument.index; }

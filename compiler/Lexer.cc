@@ -1,8 +1,7 @@
 #include <Lexer.hh>
 
 #include <CharStream.hh>
-
-#include <fmt/core.h>
+#include <Diagnostic.hh>
 
 #include <cctype>
 #include <cstring>
@@ -11,6 +10,7 @@ Token Lexer::next_token() {
     while (std::isspace(m_stream.peek()) != 0) {
         m_stream.next();
     }
+    m_location = m_stream.location();
     if (!m_stream.has_next()) {
         return TokenKind::Eof;
     }
@@ -59,31 +59,31 @@ Token Lexer::next_token() {
         return number;
     }
     if (std::isalpha(ch) != 0 || ch == '_') {
-        std::string buf;
-        buf += ch;
+        const char *start = m_stream.position_ptr() - 1;
+        std::size_t length = 1;
         while (std::isalpha(ch = m_stream.peek()) != 0 || std::isdigit(ch) != 0 || ch == '_') {
-            buf += m_stream.next();
+            length++;
+            m_stream.next();
         }
-        if (buf == "fn") {
+        std::string_view view(start, length);
+        if (view == "fn") {
             return TokenKind::KeywordFn;
         }
-        if (buf == "let") {
+        if (view == "let") {
             return TokenKind::KeywordLet;
         }
-        if (buf == "match") {
+        if (view == "match") {
             return TokenKind::KeywordMatch;
         }
-        if (buf == "return") {
+        if (view == "return") {
             return TokenKind::KeywordReturn;
         }
-        if (buf == "yield") {
+        if (view == "yield") {
             return TokenKind::KeywordYield;
         }
-        // TODO: Don't strdup, make std::string disown memory somehow.
-        const char *copy = strdup(buf.c_str());
-        return std::string_view(copy, buf.length());
+        return view;
     }
-    fmt::print("error: unexpected '{}'\n", ch);
+    Diagnostic(m_location, "unexpected '{}'", ch);
     return TokenKind::Eof;
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -41,7 +42,7 @@ public:
     Token(Token &&other) noexcept
         : m_int_data(std::exchange(other.m_int_data, 0)), m_ptr_data(std::exchange(other.m_ptr_data, nullptr)),
           m_kind(other.m_kind) {}
-    ~Token();
+    ~Token() = default;
 
     Token &operator=(const Token &) = delete;
     Token &operator=(Token &&other) noexcept {
@@ -54,5 +55,5 @@ public:
     TokenKind kind() const { return m_kind; }
     std::size_t number() const { return m_int_data; }
     std::string_view text() const;
-    std::string_view to_string() const;
+    std::string to_string() const;
 };

@@ -1,10 +1,11 @@
 #include <Analysis.hh>
 
+#include <Diagnostic.hh>
 #include <Hir.hh>
 
 #include <coel/ir/Types.hh>
 #include <coel/support/Stack.hh>
-#include <fmt/core.h>
+#include <fmt/format.h>
 
 #include <cmath>
 #include <vector>
@@ -234,9 +235,10 @@ void Unifier::analyse_expr(hir::ExprId id) {
                 case ConstraintKind::ImplicitlyCastable: {
                     const auto &cast_to = m_root.type(c2.implicitly_castable_expr());
                     if (expr.type() != cast_to) {
-                        fmt::print("error: cannot implicitly cast from {} to {}\n", type_string(expr.type()),
-                                   type_string(cast_to));
-                        std::exit(1);
+                        Diagnostic diagnostic(expr.location(), "cannot implicitly cast from {} to {}",
+                                              type_string(expr.type()), type_string(cast_to));
+                        auto &constraining_expr = m_root.expr(c2.implicitly_castable_expr());
+                        diagnostic.add_note(constraining_expr.location(), "constrained here");
                     }
                     break;
                 }
@@ -267,14 +269,17 @@ void Unifier::analyse_expr(hir::ExprId id) {
                         COEL_ENSURE_NOT_REACHED("Integer type needs to be castable to a non-integer");
                     }
                     if (cast_to->bit_width() < c1.integer_width_bit_width()) {
-                        if (expr.kind() == hir::ExprKind::Constant) {
-                            fmt::print("error: implicit truncation from {} (u{}) to {} is not allowed\n",
-                                       expr.constant_value(), c1.integer_width_bit_width(), type_string(cast_to));
-                        } else {
-                            fmt::print("error: implicit truncation from u{} to {} is not allowed\n",
-                                       c1.integer_width_bit_width(), type_string(cast_to));
+                        Diagnostic diagnostic(expr.location(), "implicit truncation from {} to {} is not allowed",
+                                              expr.kind() == hir::ExprKind::Constant
+                                                  ? fmt::format("the literal '{}' (u{})", expr.constant_value(),
+                                                                c1.integer_width_bit_width())
+                                                  : fmt::format("a u{}", c1.integer_width_bit_width()),
+                                              type_string(cast_to));
+                        auto &constraining_expr = m_root.expr(c2.implicitly_castable_expr());
+                        if (constraining_expr.kind() == hir::ExprKind::Argument) {
+                            diagnostic.add_note(constraining_expr.location(), "parameter declared as {} here",
+                                                type_string(cast_to));
                         }
-                        std::exit(1);
                     }
                     expr.set_type(cast_to);
                     break;

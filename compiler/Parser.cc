@@ -1,14 +1,12 @@
 #include <Parser.hh>
 
 #include <Ast.hh>
+#include <Diagnostic.hh>
 #include <Lexer.hh>
 #include <Token.hh>
 
+#include <coel/support/Assert.hh>
 #include <coel/support/Stack.hh>
-
-#include <fmt/core.h>
-
-#include <cstdlib>
 
 namespace {
 
@@ -31,14 +29,15 @@ constexpr int compare_op(Op op1, Op op2) {
     return p1 > p2 ? 1 : p1 < p2 ? -1 : 0;
 }
 
-std::unique_ptr<ast::Node> create_expr(Op op, coel::Stack<std::unique_ptr<ast::Node>> &operands) {
+std::unique_ptr<ast::Node> create_expr(const SourceLocation &location, Op op,
+                                       coel::Stack<std::unique_ptr<ast::Node>> &operands) {
     auto rhs = operands.pop();
     auto lhs = operands.pop();
     switch (op) {
     case Op::Add:
-        return std::make_unique<ast::BinaryExpr>(ast::BinaryOp::Add, std::move(lhs), std::move(rhs));
+        return std::make_unique<ast::BinaryExpr>(location, ast::BinaryOp::Add, std::move(lhs), std::move(rhs));
     case Op::Sub:
-        return std::make_unique<ast::BinaryExpr>(ast::BinaryOp::Sub, std::move(lhs), std::move(rhs));
+        return std::make_unique<ast::BinaryExpr>(location, ast::BinaryOp::Sub, std::move(lhs), std::move(rhs));
     }
 }
 
@@ -54,14 +53,14 @@ std::optional<Token> Parser::consume(TokenKind kind) {
 Token Parser::expect(TokenKind kind) {
     auto next = m_lexer.next();
     if (next.kind() != kind) {
-        fmt::print("error: expected {} but got {}\n", Token::kind_string(kind), next.to_string());
-        std::exit(1);
+        Diagnostic(m_lexer.location(), "expected {} but got {}", Token::kind_string(kind), next.to_string());
     }
     return next;
 }
 
-std::unique_ptr<ast::CallExpr> Parser::parse_call_expr(std::unique_ptr<ast::Symbol> &&name) {
-    auto call_expr = std::make_unique<ast::CallExpr>(std::move(name));
+std::unique_ptr<ast::CallExpr> Parser::parse_call_expr(const SourceLocation &location,
+                                                       std::unique_ptr<ast::Symbol> &&name) {
+    auto call_expr = std::make_unique<ast::CallExpr>(location, std::move(name));
     expect(TokenKind::LeftParen);
     while (m_lexer.peek().kind() != TokenKind::RightParen) {
         call_expr->add_arg(parse_expr());
@@ -73,8 +72,9 @@ std::unique_ptr<ast::CallExpr> Parser::parse_call_expr(std::unique_ptr<ast::Symb
 
 std::unique_ptr<ast::MatchExpr> Parser::parse_match_expr() {
     expect(TokenKind::KeywordMatch);
+    auto location = m_lexer.location();
     expect(TokenKind::LeftParen);
-    auto match_expr = std::make_unique<ast::MatchExpr>(parse_expr());
+    auto match_expr = std::make_unique<ast::MatchExpr>(location, parse_expr());
     expect(TokenKind::RightParen);
     expect(TokenKind::LeftBrace);
     while (m_lexer.peek().kind() != TokenKind::RightBrace) {
@@ -107,17 +107,21 @@ std::unique_ptr<ast::Node> Parser::parse_expr() {
         if (!op1) {
             switch (m_lexer.peek().kind()) {
             case TokenKind::Identifier: {
-                auto symbol = std::make_unique<ast::Symbol>(std::string(expect(TokenKind::Identifier).text()));
+                std::string text(expect(TokenKind::Identifier).text());
+                auto location = m_lexer.location();
+                auto symbol = std::make_unique<ast::Symbol>(location, std::move(text));
                 if (m_lexer.peek().kind() == TokenKind::LeftParen) {
-                    operands.push(parse_call_expr(std::move(symbol)));
+                    operands.push(parse_call_expr(location, std::move(symbol)));
                 } else {
                     operands.push(std::move(symbol));
                 }
                 break;
             }
-            case TokenKind::IntLit:
-                operands.push(std::make_unique<ast::IntegerLiteral>(expect(TokenKind::IntLit).number()));
+            case TokenKind::IntLit: {
+                auto number = expect(TokenKind::IntLit).number();
+                operands.push(std::make_unique<ast::IntegerLiteral>(m_lexer.location(), number));
                 break;
+            }
             case TokenKind::KeywordMatch:
                 operands.push(parse_match_expr());
                 break;
@@ -138,22 +142,24 @@ std::unique_ptr<ast::Node> Parser::parse_expr() {
                 break;
             }
             auto op = operators.pop();
-            operands.push(create_expr(op, operands));
+            operands.push(create_expr(m_lexer.location(), op, operands));
         }
         operators.push(*op1);
     }
     while (!operators.empty()) {
         auto op = operators.pop();
-        operands.push(create_expr(op, operands));
+        if (operands.size() < 2) {
+            const auto &actual = m_lexer.peek();
+            Diagnostic(m_lexer.location(), "expected expression before {} token", actual.to_string());
+        }
+        operands.push(create_expr(m_lexer.location(), op, operands));
     }
-    if (operands.size() != 1) {
-        fmt::print("error: unfinished expression\n");
-        std::exit(1);
-    }
+    COEL_ASSERT(operands.size() == 1);
     return operands.pop();
 }
 
 std::unique_ptr<ast::DeclStmt> Parser::parse_decl_stmt() {
+    auto location = m_lexer.location();
     if (!consume(TokenKind::KeywordLet)) {
         return {};
     }
@@ -161,25 +167,27 @@ std::unique_ptr<ast::DeclStmt> Parser::parse_decl_stmt() {
     expect(TokenKind::Eq);
     auto expr = parse_expr();
     expect(TokenKind::Semi);
-    return std::make_unique<ast::DeclStmt>(std::string(name.text()), std::move(expr));
+    return std::make_unique<ast::DeclStmt>(location, std::string(name.text()), std::move(expr));
 }
 
 std::unique_ptr<ast::ReturnStmt> Parser::parse_return_stmt() {
+    auto location = m_lexer.location();
     if (!consume(TokenKind::KeywordReturn)) {
         return {};
     }
     auto expr = parse_expr();
     expect(TokenKind::Semi);
-    return std::make_unique<ast::ReturnStmt>(std::move(expr));
+    return std::make_unique<ast::ReturnStmt>(location, std::move(expr));
 }
 
 std::unique_ptr<ast::YieldStmt> Parser::parse_yield_stmt() {
+    auto location = m_lexer.location();
     if (!consume(TokenKind::KeywordYield)) {
         return {};
     }
     auto expr = parse_expr();
     expect(TokenKind::Semi);
-    return std::make_unique<ast::YieldStmt>(std::move(expr));
+    return std::make_unique<ast::YieldStmt>(location, std::move(expr));
 }
 
 std::unique_ptr<ast::Node> Parser::parse_stmt() {
@@ -192,12 +200,13 @@ std::unique_ptr<ast::Node> Parser::parse_stmt() {
     if (auto yield_stmt = parse_yield_stmt()) {
         return yield_stmt;
     }
-    fmt::print("error: expected a statement but got {}\n", m_lexer.next().to_string());
-    std::exit(1);
+    const auto &actual = m_lexer.peek();
+    Diagnostic(m_lexer.location(), "expected a statement but got {}", actual.to_string());
+    COEL_ENSURE_NOT_REACHED();
 }
 
 std::unique_ptr<ast::Block> Parser::parse_block() {
-    auto block = std::make_unique<ast::Block>();
+    auto block = std::make_unique<ast::Block>(m_lexer.location());
     expect(TokenKind::LeftBrace);
     while (m_lexer.has_next() && m_lexer.peek().kind() != TokenKind::RightBrace) {
         block->add_stmt(parse_stmt());
@@ -217,12 +226,13 @@ std::unique_ptr<ast::Root> Parser::parse() {
         expect(TokenKind::KeywordFn);
         auto name = expect(TokenKind::Identifier);
         expect(TokenKind::LeftParen);
-        auto function = std::make_unique<ast::FunctionDecl>(std::string(name.text()));
+        auto function = std::make_unique<ast::FunctionDecl>(m_lexer.location(), std::string(name.text()));
         while (m_lexer.peek().kind() != TokenKind::RightParen) {
             expect(TokenKind::KeywordLet);
+            auto location = m_lexer.location();
             auto arg_name = expect(TokenKind::Identifier);
             expect(TokenKind::Colon);
-            function->add_arg({std::string(arg_name.text()), parse_type()});
+            function->add_arg({location, std::string(arg_name.text()), parse_type()});
             consume(TokenKind::Comma);
         }
         expect(TokenKind::RightParen);

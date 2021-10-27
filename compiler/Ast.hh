@@ -1,5 +1,7 @@
 #pragma once
 
+#include <SourceLocation.hh>
+
 #include <coel/support/List.hh>
 #include <coel/support/ListNode.hh>
 
@@ -15,8 +17,14 @@ class Visitor;
 
 // TODO: Not all nodes are part of a list.
 class Node : public coel::ListNode {
+    const SourceLocation m_location;
+
 public:
+    explicit Node(const SourceLocation &location) : m_location(location) {}
+
     virtual void accept(Visitor *visitor) const = 0;
+
+    const SourceLocation &location() const { return m_location; }
 };
 
 class Type {
@@ -55,8 +63,9 @@ class BinaryExpr : public Node {
     const std::unique_ptr<const Node> m_rhs;
 
 public:
-    BinaryExpr(BinaryOp op, std::unique_ptr<const Node> &&lhs, std::unique_ptr<const Node> &&rhs)
-        : m_op(op), m_lhs(std::move(lhs)), m_rhs(std::move(rhs)) {}
+    BinaryExpr(const SourceLocation &location, BinaryOp op, std::unique_ptr<const Node> &&lhs,
+               std::unique_ptr<const Node> &&rhs)
+        : Node(location), m_op(op), m_lhs(std::move(lhs)), m_rhs(std::move(rhs)) {}
 
     void accept(Visitor *visitor) const override;
 
@@ -69,6 +78,8 @@ class Block : public Node {
     coel::List<const Node> m_stmts;
 
 public:
+    explicit Block(const SourceLocation &location) : Node(location) {}
+
     void add_stmt(std::unique_ptr<const Node> &&stmt) { m_stmts.insert(m_stmts.end(), stmt.release()); }
 
     auto begin() const { return m_stmts.begin(); }
@@ -82,7 +93,8 @@ class CallExpr : public Node {
     coel::List<const Node> m_args;
 
 public:
-    explicit CallExpr(std::unique_ptr<const Symbol> &&callee) : m_callee(std::move(callee)) {}
+    CallExpr(const SourceLocation &location, std::unique_ptr<const Symbol> &&callee)
+        : Node(location), m_callee(std::move(callee)) {}
 
     void accept(Visitor *visitor) const override;
     void add_arg(std::unique_ptr<const Node> &&arg) { m_args.insert(m_args.end(), arg.release()); }
@@ -96,8 +108,8 @@ class DeclStmt : public Node {
     const std::unique_ptr<const Node> m_value;
 
 public:
-    DeclStmt(std::string name, std::unique_ptr<const Node> &&value)
-        : m_name(std::move(name)), m_value(std::move(value)) {}
+    DeclStmt(const SourceLocation &location, std::string name, std::unique_ptr<const Node> &&value)
+        : Node(location), m_name(std::move(name)), m_value(std::move(value)) {}
 
     void accept(Visitor *visitor) const override;
 
@@ -106,13 +118,15 @@ public:
 };
 
 class FunctionArg {
+    const SourceLocation m_location;
     std::string m_name;
     std::unique_ptr<const Type> m_type;
 
 public:
-    FunctionArg(std::string name, std::unique_ptr<const Type> &&type)
-        : m_name(std::move(name)), m_type(std::move(type)) {}
+    FunctionArg(const SourceLocation &location, std::string name, std::unique_ptr<const Type> &&type)
+        : m_location(location), m_name(std::move(name)), m_type(std::move(type)) {}
 
+    const SourceLocation &location() const { return m_location; }
     const std::string &name() const { return m_name; }
     const Type &type() const { return *m_type; }
 };
@@ -124,7 +138,7 @@ class FunctionDecl : public Node {
     std::unique_ptr<const Type> m_return_type;
 
 public:
-    explicit FunctionDecl(std::string name) : m_name(std::move(name)) {}
+    FunctionDecl(const SourceLocation &location, std::string name) : Node(location), m_name(std::move(name)) {}
 
     void accept(Visitor *visitor) const override;
     void add_arg(FunctionArg &&arg) { m_args.push_back(std::move(arg)); }
@@ -142,7 +156,7 @@ class IntegerLiteral : public Node {
     const std::size_t m_value;
 
 public:
-    explicit IntegerLiteral(std::size_t value) : m_value(value) {}
+    IntegerLiteral(const SourceLocation &location, std::size_t value) : Node(location), m_value(value) {}
 
     void accept(Visitor *visitor) const override;
 
@@ -166,7 +180,8 @@ class MatchExpr : public Node {
     std::vector<MatchArm> m_arms;
 
 public:
-    explicit MatchExpr(std::unique_ptr<const Node> &&matchee) : m_matchee(std::move(matchee)) {}
+    MatchExpr(const SourceLocation &location, std::unique_ptr<const Node> &&matchee)
+        : Node(location), m_matchee(std::move(matchee)) {}
 
     void accept(Visitor *visitor) const override;
     void add_arm(std::unique_ptr<const Node> &&lhs, std::unique_ptr<const Node> &&rhs) {
@@ -181,7 +196,8 @@ class ReturnStmt : public Node {
     const std::unique_ptr<const Node> m_value;
 
 public:
-    explicit ReturnStmt(std::unique_ptr<const Node> &&value) : m_value(std::move(value)) {}
+    ReturnStmt(const SourceLocation &location, std::unique_ptr<const Node> &&value)
+        : Node(location), m_value(std::move(value)) {}
 
     void accept(Visitor *visitor) const override;
 
@@ -192,6 +208,8 @@ class Root : public Node {
     coel::List<const FunctionDecl> m_functions;
 
 public:
+    Root() : Node({0, 0, {}}) {}
+
     void add_function(std::unique_ptr<const FunctionDecl> &&function) {
         m_functions.insert(m_functions.end(), function.release());
     }
@@ -206,7 +224,7 @@ class Symbol : public Node {
     const std::string m_name;
 
 public:
-    explicit Symbol(std::string name) : m_name(std::move(name)) {}
+    Symbol(const SourceLocation &location, std::string name) : Node(location), m_name(std::move(name)) {}
 
     void accept(Visitor *visitor) const override;
 
@@ -217,7 +235,8 @@ class YieldStmt : public Node {
     const std::unique_ptr<const Node> m_value;
 
 public:
-    explicit YieldStmt(std::unique_ptr<const Node> &&value) : m_value(std::move(value)) {}
+    YieldStmt(const SourceLocation &location, std::unique_ptr<const Node> &&value)
+        : Node(location), m_value(std::move(value)) {}
 
     void accept(Visitor *visitor) const override;
 

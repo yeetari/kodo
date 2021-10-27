@@ -1,11 +1,11 @@
 #include <AstLowering.hh>
 
 #include <Ast.hh>
+#include <Diagnostic.hh>
 #include <Hir.hh>
 
 #include <coel/ir/Types.hh>
 #include <coel/support/Stack.hh>
-#include <fmt/core.h>
 
 #include <optional>
 #include <string_view>
@@ -20,13 +20,17 @@ enum class ScopeKind {
 };
 
 class Scope {
+    hir::Root &m_root;
     Scope *&m_current;
     Scope *const m_parent;
     const ScopeKind m_kind;
     std::unordered_map<std::string_view, hir::ExprId> m_symbol_map;
 
 public:
-    Scope(Scope *&current, ScopeKind kind) : m_current(current), m_parent(current), m_kind(kind) { current = this; }
+    Scope(hir::Root &root, Scope *&current, ScopeKind kind)
+        : m_root(root), m_current(current), m_parent(current), m_kind(kind) {
+        current = this;
+    }
     Scope(const Scope &) = delete;
     Scope(Scope &&) = delete;
     ~Scope() { m_current = m_parent; }
@@ -35,8 +39,8 @@ public:
     Scope &operator=(Scope &&) = delete;
 
     std::optional<hir::ExprId> find_symbol(std::string_view name) const;
-    hir::ExprId lookup_symbol(std::string_view name) const;
-    void put_symbol(std::string_view name, hir::ExprId id);
+    hir::ExprId lookup_symbol(const SourceLocation &location, std::string_view name) const;
+    void put_symbol(const SourceLocation &location, std::string_view name, hir::ExprId id);
 
     const Scope *parent() const { return m_parent; }
     ScopeKind kind() const { return m_kind; }
@@ -77,18 +81,18 @@ std::optional<hir::ExprId> Scope::find_symbol(std::string_view name) const {
     return std::nullopt;
 }
 
-hir::ExprId Scope::lookup_symbol(std::string_view name) const {
+hir::ExprId Scope::lookup_symbol(const SourceLocation &location, std::string_view name) const {
     if (auto symbol = find_symbol(name)) {
         return *symbol;
     }
-    fmt::print("error: use of undeclared symbol {}\n", name);
-    std::exit(1);
+    Diagnostic(location, "attempted use of undeclared symbol '{}'", name);
+    COEL_ENSURE_NOT_REACHED();
 }
 
-void Scope::put_symbol(std::string_view name, hir::ExprId id) {
-    if (find_symbol(name)) {
-        fmt::print("error: attempted redeclaration of symbol {}\n", name);
-        std::exit(1);
+void Scope::put_symbol(const SourceLocation &location, std::string_view name, hir::ExprId id) {
+    if (auto existing = find_symbol(name)) {
+        Diagnostic diagnostic(location, "attempted redeclaration of symbol '{}'", name);
+        diagnostic.add_note(m_root.expr(*existing).location(), "symbol originally declared here");
     }
     m_symbol_map.emplace(name, id);
 }
@@ -117,11 +121,11 @@ void AstLowering::visit(const ast::BinaryExpr &binary_expr) {
     binary_expr.rhs().accept(this);
     auto rhs = m_expr_stack.pop();
     auto lhs = m_expr_stack.pop();
-    m_expr_stack.push(m_root.create_expr(binary_op(binary_expr.op()), lhs, rhs));
+    m_expr_stack.push(m_root.create_expr(binary_expr.location(), binary_op(binary_expr.op()), lhs, rhs));
 }
 
 void AstLowering::visit(const ast::Block &block) {
-    Scope scope(m_scope, ScopeKind::Block);
+    Scope scope(m_root, m_scope, ScopeKind::Block);
     for (const auto *stmt : block) {
         stmt->accept(this);
     }
@@ -134,35 +138,35 @@ void AstLowering::visit(const ast::CallExpr &call_expr) {
         args[i++] = m_expr_stack.pop();
     }
     auto *callee = m_function_map.at(call_expr.callee().name());
-    m_expr_stack.push(m_root.create_expr(callee, m_root.type(callee->block()), args));
+    m_expr_stack.push(m_root.create_expr(call_expr.location(), callee, m_root.type(callee->block()), args));
 }
 
 void AstLowering::visit(const ast::DeclStmt &decl_stmt) {
     decl_stmt.value().accept(this);
-    COEL_ASSERT(!m_scope->find_symbol(decl_stmt.name()));
     COEL_ASSERT(m_expr_stack.size() == 1);
-    auto var = m_root.create_expr(hir::ExprKind::Var, hir::TypeKind::Infer);
+    auto var = m_root.create_expr(decl_stmt.location(), hir::ExprKind::Var, hir::TypeKind::Infer);
     m_root.expr(m_block).append<hir::DeclStmt>(var, m_expr_stack.pop());
-    m_scope->put_symbol(decl_stmt.name(), var);
+    m_scope->put_symbol(decl_stmt.location(), decl_stmt.name(), var);
 }
 
 void AstLowering::visit(const ast::FunctionDecl &function_decl) {
-    Scope scope(m_scope, ScopeKind::Function);
+    Scope scope(m_root, m_scope, ScopeKind::Function);
     std::vector<hir::ExprId> params;
     for (std::size_t i = 0; const auto &arg : function_decl.args()) {
-        auto argument = m_root.create_expr(hir::ExprKind::Argument, lower_type(arg.type()), i++);
-        m_scope->put_symbol(arg.name(), argument);
+        auto argument = m_root.create_expr(arg.location(), hir::ExprKind::Argument, lower_type(arg.type()), i++);
+        m_scope->put_symbol(arg.location(), arg.name(), argument);
         params.push_back(argument);
     }
     m_function = m_root.append_function(function_decl.name(), std::move(params));
-    m_block = m_root.create_expr(hir::ExprKind::Block, lower_type(function_decl.return_type()));
+    m_block =
+        m_root.create_expr(function_decl.location(), hir::ExprKind::Block, lower_type(function_decl.return_type()));
     m_function->set_block(m_block);
     m_function_map.emplace(function_decl.name(), m_function);
     function_decl.block().accept(this);
 }
 
 void AstLowering::visit(const ast::IntegerLiteral &integer_literal) {
-    m_expr_stack.push(m_root.create_expr(hir::ExprKind::Constant, integer_literal.value()));
+    m_expr_stack.push(m_root.create_expr(integer_literal.location(), hir::ExprKind::Constant, integer_literal.value()));
 }
 
 void AstLowering::visit(const ast::MatchExpr &match_expr) {
@@ -176,7 +180,7 @@ void AstLowering::visit(const ast::MatchExpr &match_expr) {
         auto rhs = m_expr_stack.pop();
         arms[i++] = {lhs, rhs};
     }
-    m_expr_stack.push(m_root.create_expr(matchee, arms, match_expr.arms().size()));
+    m_expr_stack.push(m_root.create_expr(match_expr.location(), matchee, arms, match_expr.arms().size()));
 }
 
 void AstLowering::visit(const ast::ReturnStmt &return_stmt) {
@@ -185,14 +189,14 @@ void AstLowering::visit(const ast::ReturnStmt &return_stmt) {
 }
 
 void AstLowering::visit(const ast::Root &root) {
-    Scope scope(m_scope, ScopeKind::Root);
+    Scope scope(m_root, m_scope, ScopeKind::Root);
     for (const auto *function : root) {
         function->accept(this);
     }
 }
 
 void AstLowering::visit(const ast::Symbol &symbol) {
-    m_expr_stack.push(m_scope->lookup_symbol(symbol.name()));
+    m_expr_stack.push(m_scope->lookup_symbol(symbol.location(), symbol.name()));
 }
 
 void AstLowering::visit(const ast::YieldStmt &yield_stmt) {

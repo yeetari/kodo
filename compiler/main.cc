@@ -57,9 +57,8 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    std::ifstream ifstream(input_file);
-    CharStream stream(ifstream);
-    Lexer lexer(stream);
+    auto [file, stream] = CharStream::open_file(input_file.c_str());
+    Lexer lexer(std::move(stream));
     Parser parser(lexer);
     auto ast_root = parser.parse();
     auto hir_root = lower_ast(*ast_root);
