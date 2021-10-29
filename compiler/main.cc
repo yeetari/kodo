@@ -91,6 +91,7 @@ int main(int argc, char **argv) {
     auto [entry, encoded] = coel::x86::encode(compiled, unit.find_function("main"));
     if (run) {
         auto *code_region =
+            // NOLINTNEXTLINE
             mmap(nullptr, encoded.size(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         memcpy(code_region, encoded.data(), encoded.size());
         return reinterpret_cast<int (*)()>(static_cast<std::uint8_t *>(code_region) + entry)();

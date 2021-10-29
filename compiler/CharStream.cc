@@ -16,6 +16,7 @@ FileHandle::~FileHandle() {
 }
 
 std::pair<FileHandle, CharStream> CharStream::open_file(const char *path) {
+    // NOLINTNEXTLINE
     FileHandle handle(open(path, O_RDONLY));
     CharStream stream(handle);
     return {std::move(handle), std::move(stream)};
