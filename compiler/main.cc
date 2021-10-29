@@ -8,10 +8,10 @@
 #include <Token.hh>
 
 #include <coel/codegen/Context.hh>
-#include <coel/codegen/CopyInserter.hh>
 #include <coel/codegen/RegisterAllocator.hh>
 #include <coel/ir/Dumper.hh>
 #include <coel/x86/Backend.hh>
+#include <coel/x86/Legaliser.hh>
 #include <fmt/core.h>
 
 #include <fstream>
@@ -72,11 +72,11 @@ int main(int argc, char **argv) {
     }
 
     coel::codegen::Context context(unit);
-    coel::codegen::insert_copies(context);
+    coel::x86::legalise(context);
     if (dump_codegen) {
-        fmt::print("===============\n");
-        fmt::print("INSERTED COPIES\n");
-        fmt::print("===============\n");
+        fmt::print("=========\n");
+        fmt::print("LEGALISED\n");
+        fmt::print("=========\n");
         coel::ir::dump(unit);
     }
     coel::codegen::register_allocate(context);
